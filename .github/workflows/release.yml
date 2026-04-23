@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            artifact: mdview-linux-amd64
+          - goos: darwin
+            goarch: amd64
+            artifact: mdview-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            artifact: mdview-darwin-arm64
+          - goos: windows
+            goarch: amd64
+            artifact: mdview-windows-amd64.exe
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < version.txt)"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o "dist/${{ matrix.artifact }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < version.txt)"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifact layout
+        shell: bash
+        run: |
+          mkdir -p release
+          find dist -type f -exec cp {} release/ \;
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          name: v${{ steps.version.outputs.value }}
+          files: release/*

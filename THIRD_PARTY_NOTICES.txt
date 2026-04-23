@@ -1,0 +1,6 @@
+mdview bundles the following third-party asset:
+
+- internal/assets/github-markdown.css
+  - Source: https://github.com/sindresorhus/github-markdown-css
+  - Version: v5.5.1
+  - License: MIT
