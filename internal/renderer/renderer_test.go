@@ -55,3 +55,51 @@ func TestRenderIncludesLiveReloadWhenEnabled(t *testing.T) {
 		t.Fatalf("expected websocket endpoint to be embedded")
 	}
 }
+
+func TestRenderIncludesMermaidAssetsWhenDiagramPresent(t *testing.T) {
+	renderer := New()
+
+	output, err := renderer.Render([]byte("```mermaid\ngraph TD\n  A --> B\n```"), Options{})
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	html := string(output)
+	checks := []string{
+		`<pre class="mermaid">`,
+		`window.__mdviewRenderMermaid`,
+		`Failed to render Mermaid diagram`,
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(html, check) {
+			t.Fatalf("expected rendered HTML to contain %q", check)
+		}
+	}
+
+	if strings.Contains(html, `class="chroma"`) {
+		t.Fatalf("expected mermaid fences to bypass syntax highlighting")
+	}
+}
+
+func TestRenderIncludesMermaidAssetsWhenDiagramPresentWithCRLF(t *testing.T) {
+	renderer := New()
+
+	output, err := renderer.Render([]byte("```mermaid\r\ngraph TD\r\n  A --> B\r\n```\r\n"), Options{})
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	html := string(output)
+	checks := []string{
+		`<pre class="mermaid">`,
+		`window.__mdviewRenderMermaid`,
+		`Failed to render Mermaid diagram`,
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(html, check) {
+			t.Fatalf("expected rendered HTML to contain %q", check)
+		}
+	}
+}

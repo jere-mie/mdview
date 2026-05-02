@@ -5,6 +5,7 @@
 ## Features
 
 - GitHub-styled Markdown rendering with syntax highlighting
+- Mermaid diagram rendering with vendored assets
 - Live reload over WebSockets when watched files change
 - Directory browser that renders Markdown and serves other files directly
 - Standalone HTML conversion with embedded CSS
@@ -47,4 +48,4 @@ go run . .
 
 ## Third-party notices
 
-`internal/assets/github-markdown.css` is derived from `github-markdown-css` v5.5.1, which is MIT licensed. See `THIRD_PARTY_NOTICES.txt` for the bundled attribution summary.
+`internal/assets/github-markdown.css` is derived from `github-markdown-css` v5.5.1, and `internal/assets/mermaid.min.js` is bundled from `mermaid` v11.12.0. Both are MIT licensed. See `THIRD_PARTY_NOTICES.txt` for the bundled attribution summary.

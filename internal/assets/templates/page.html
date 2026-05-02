@@ -230,9 +230,16 @@ body {
   applyTheme(currentTheme(), false);
   toggle.addEventListener("click", () => {
     applyTheme(currentTheme() === "dark" ? "light" : "dark", true);
+    if (typeof window.__mdviewRenderMermaid === "function") {
+      window.__mdviewRenderMermaid();
+    }
   });
 })();
   </script>
+{{ if .MermaidBundle }}
+  <script>{{ .MermaidBundle }}</script>
+  <script>{{ .MermaidInit }}</script>
+{{ end }}
 {{ .ReloadScript }}
 </body>
 </html>
