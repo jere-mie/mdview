@@ -36,6 +36,7 @@ type Server struct {
 	version    string
 	renderer   *renderer.Renderer
 	indexTmpl  *template.Template
+	listener   net.Listener
 	httpServer *http.Server
 	hub        *hub
 	watcher    *watcher.Watcher
@@ -92,12 +93,19 @@ func New(cfg Config) (*Server, error) {
 	}
 	s.watcher = fileWatcher
 
+	listener, actualPort, err := listenWithFallback(cfg.Host, cfg.Port, 1000)
+	if err != nil {
+		_ = s.watcher.Close()
+		return nil, err
+	}
+	s.listener = listener
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWebSocket)
 	mux.HandleFunc("/", s.handleRequest)
 
 	s.httpServer = &http.Server{
-		Addr:              listenAddr(cfg.Host, cfg.Port),
+		Addr:              listenAddr(cfg.Host, actualPort),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -108,7 +116,7 @@ func New(cfg Config) (*Server, error) {
 func (s *Server) Run(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go func() {
-		err := s.httpServer.ListenAndServe()
+		err := s.httpServer.Serve(s.listener)
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
 		}
@@ -342,4 +350,35 @@ func listenAddr(host string, port int) string {
 		host = "127.0.0.1"
 	}
 	return net.JoinHostPort(host, fmt.Sprintf("%d", port))
+}
+
+func listenWithFallback(host string, startPort int, maxAttempts int) (net.Listener, int, error) {
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if startPort < 1 || startPort > 65535 {
+		return nil, 0, fmt.Errorf("invalid server port %d", startPort)
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts && startPort+attempt <= 65535; attempt++ {
+		candidatePort := startPort + attempt
+		listener, err := net.Listen("tcp", listenAddr(host, candidatePort))
+		if err == nil {
+			return listener, candidatePort, nil
+		}
+		lastErr = err
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("no ports available")
+	}
+	return nil, 0, fmt.Errorf("listen on %s starting at %d: %w", host, startPort, lastErr)
+}
+
+func (s *Server) ListenAddr() string {
+	if s.httpServer == nil {
+		return ""
+	}
+	return s.httpServer.Addr
 }

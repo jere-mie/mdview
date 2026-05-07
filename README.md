@@ -16,6 +16,7 @@
 ```powershell
 mdview [path]
 mdview -p 9090 docs
+MDVIEW_PORT=9091 mdview docs
 mdview -H 0.0.0.0 docs
 mdview -c README.md
 mdview -c README.md -o README.preview.html
@@ -27,7 +28,7 @@ mdview -v
 | Flag | Description |
 | --- | --- |
 | `-H`, `--host` | Server host. Defaults to `127.0.0.1`. |
-| `-p`, `--port` | Server port. Defaults to `8080`. |
+| `-p`, `--port` | Server port. Defaults to `8080` unless `MDVIEW_PORT` is set. |
 | `-c`, `--convert` | Convert a Markdown file to standalone HTML instead of starting the server. |
 | `-o`, `--output` | Output file path for conversion mode. |
 | `-v`, `--version` | Print the embedded version string. |
@@ -37,6 +38,7 @@ mdview -v
 - Passing a Markdown file starts file mode and watches that file for reloads.
 - Passing a directory starts directory mode and serves a file browser rooted at that path.
 - Markdown files are rendered as HTML pages, while other files are served directly.
+- If the requested port is already in use, mdview probes the next ports until it finds a free one or gives up after 1000 attempts.
 - Conversion mode writes a self-contained HTML file with embedded styling.
 
 ## Development

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -19,6 +19,11 @@ import (
 
 //go:embed version.txt
 var version string
+
+const (
+	defaultServerPort = 8080
+	serverPortEnvVar  = "MDVIEW_PORT"
+)
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -39,8 +44,8 @@ func run(args []string) error {
 		showVersion bool
 	)
 
-	flags.IntVar(&port, "p", 8080, "server port")
-	flags.IntVar(&port, "port", 8080, "server port")
+	flags.IntVar(&port, "p", defaultServerPort, "server port")
+	flags.IntVar(&port, "port", defaultServerPort, "server port")
 	flags.StringVar(&host, "H", "127.0.0.1", "server host")
 	flags.StringVar(&host, "host", "127.0.0.1", "server host")
 	flags.BoolVar(&convertMode, "c", false, "convert markdown to standalone HTML")
@@ -51,6 +56,8 @@ func run(args []string) error {
 	flags.BoolVar(&showVersion, "version", false, "print version")
 	flags.Usage = func() {
 		fmt.Fprintln(flags.Output(), "Usage: mdview [flags] [path]")
+		fmt.Fprintln(flags.Output())
+		fmt.Fprintf(flags.Output(), "Environment: %s sets the default server port when no port flag is provided.\n", serverPortEnvVar)
 		fmt.Fprintln(flags.Output())
 		fmt.Fprintln(flags.Output(), "Flags:")
 		flags.PrintDefaults()
@@ -65,6 +72,13 @@ func run(args []string) error {
 		fmt.Println(buildVersion)
 		return nil
 	}
+
+	portFlagProvided := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "p" || f.Name == "port" {
+			portFlagProvided = true
+		}
+	})
 
 	targetPath := "."
 	if flags.NArg() > 0 {
@@ -116,6 +130,11 @@ func run(args []string) error {
 		return nil
 	}
 
+	port, err = resolveServerPort(portFlagProvided, port)
+	if err != nil {
+		return err
+	}
+
 	app, err := server.New(server.Config{
 		Path:     absTargetPath,
 		Port:     port,
@@ -130,6 +149,31 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Printf("mdview %s listening on http://%s\n", buildVersion, net.JoinHostPort(host, fmt.Sprintf("%d", port)))
+	fmt.Printf("mdview %s listening on http://%s\n", buildVersion, app.ListenAddr())
 	return app.Run(ctx)
+}
+
+func resolveServerPort(flagProvided bool, port int) (int, error) {
+	if flagProvided {
+		return validateServerPort(port)
+	}
+
+	rawValue := strings.TrimSpace(os.Getenv(serverPortEnvVar))
+	if rawValue == "" {
+		return validateServerPort(port)
+	}
+
+	envPort, err := strconv.Atoi(rawValue)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an integer between 1 and 65535", serverPortEnvVar)
+	}
+
+	return validateServerPort(envPort)
+}
+
+func validateServerPort(port int) (int, error) {
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("server port must be between 1 and 65535")
+	}
+	return port, nil
 }

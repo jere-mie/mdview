@@ -1,6 +1,7 @@
 package server
 
 import (
+	"net"
 	"path/filepath"
 	"testing"
 )
@@ -33,4 +34,45 @@ func TestListenAddrDefaultsToLoopback(t *testing.T) {
 	if got != want {
 		t.Fatalf("listenAddr() = %q, want %q", got, want)
 	}
+}
+
+func TestListenWithFallbackSkipsBusyPort(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		probe, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("net.Listen() = %v", err)
+		}
+
+		busyPort := probe.Addr().(*net.TCPAddr).Port
+		_ = probe.Close()
+
+		if busyPort >= 65535 {
+			continue
+		}
+
+		nextListener, err := net.Listen("tcp", listenAddr("127.0.0.1", busyPort+1))
+		if err != nil {
+			continue
+		}
+		_ = nextListener.Close()
+
+		busyListener, err := net.Listen("tcp", listenAddr("127.0.0.1", busyPort))
+		if err != nil {
+			continue
+		}
+		defer busyListener.Close()
+
+		listener, actualPort, err := listenWithFallback("127.0.0.1", busyPort, 2)
+		if err != nil {
+			t.Fatalf("listenWithFallback() error = %v", err)
+		}
+		defer listener.Close()
+
+		if actualPort != busyPort+1 {
+			t.Fatalf("listenWithFallback() port = %d, want %d", actualPort, busyPort+1)
+		}
+		return
+	}
+
+	t.Skip("could not find a stable adjacent free port pair")
 }
